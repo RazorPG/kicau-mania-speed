@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { useUser } from "@clerk/nextjs"
 import usePlay from "./usePlay"
+import { FiRepeat } from "react-icons/fi"
 
 export default function Play() {
   const {
@@ -118,9 +119,9 @@ export default function Play() {
             </span>
             <button
               onClick={resetGame}
-              className="w-full py-4 text-lg font-bold bg-blue-600 hover:bg-blue-500 rounded-2xl transition-all shadow-lg"
+              className="w-full py-4 text-lg font-bold bg-blue-600 hover:bg-blue-500 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2"
             >
-              Pengulangan
+              <FiRepeat size={20} /> Main Lagi
             </button>
           </div>
         </div>

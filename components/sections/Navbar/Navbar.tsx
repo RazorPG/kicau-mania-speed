@@ -9,12 +9,12 @@ function Navbar() {
   const { signOut } = useClerk()
 
   return (
-    <div className="w-full fixed top-0 bg-transparent border-b border-gray-700 text-white p-4 z-50">
-      <nav className="max-w-7xl flex justify-between items-center mx-auto">
+    <div className="w-full bg-transparent border-b border-gray-700 text-white p-2 md:p-4">
+      <nav className="max-w-7xl flex justify-between items-center mx-auto text-sm md:text-base">
         {user ? (
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-4">
-              <BiLeftArrow size={24} />
+              <BiLeftArrow size={20} />
               Back
             </Link>
 
@@ -24,14 +24,14 @@ function Navbar() {
           </div>
         ) : (
           <Link href="/" className="flex items-center gap-4">
-            <BiLeftArrow size={24} />
+            <BiLeftArrow size={20} />
             Back
           </Link>
         )}
 
         {user && (
           <button
-            className="px-3 py-2 rounded hover:bg-gray-700 flex items-center gap-2"
+            className="px-3 py-2 rounded hover:bg-blue-600 transition-all duration-300 flex items-center gap-2 cursor-pointer"
             onClick={() => signOut()}
           >
             <BiLogOut size={20} />
