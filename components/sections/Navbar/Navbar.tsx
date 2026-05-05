@@ -9,7 +9,7 @@ function Navbar() {
   const { signOut } = useClerk()
 
   return (
-    <div className="w-full bg-transparent border-b border-gray-700 text-white p-2 md:p-4">
+    <div className="w-full bg-transparent border-b border-gray-700 text-white text-center p-2 md:p-4">
       <nav className="max-w-7xl flex justify-between items-center mx-auto text-sm md:text-base">
         {user ? (
           <div className="flex items-center gap-4">
