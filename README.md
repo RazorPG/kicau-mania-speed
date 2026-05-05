@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<p align="center">
+	<img src="public/images/logo.png" alt="Kicau Mania Speed Logo" width="180" />
+</p>
 
-## Getting Started
+<h1 align="center">Kicau Mania Speed</h1>
 
-First, run the development server:
+**Kicau Mania Speed** adalah sebuah permainan interaktif berbasis web yang memanfaatkan teknologi pendeteksi gerakan tangan (_Hand Tracking_) menggunakan webcam. Dalam game ini, pemain ditantang untuk melakukan gerakan mengayunkan tangan secepat mungkin untuk mendapatkan skor tertinggi!
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Mekanik Permainan
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. **Akses Kamera:** Saat ingin bermain, berikan izin akses kamera pada browser.
+2. **Hitung Mundur:** Akan ada waktu persiapan (countdown) selama 3 detik sebelum permainan dimulai.
+3. **Masa Bermain (15 Detik):** Setelah hitung mundur selesai, audionya akan berbunyi dan kamu punya waktu **15 detik** untuk mengayunkan tanganmu ke arah kamera. Sistem komputer (AI) akan mendeteksi ayunannya dan tiap ayunan akan dihitung sebagai skor.
+4. **Selesai:** Permainan otomatis berhenti setelah 15 detik. Skor tertinggi kamu akan tercatat dan bersaing di fitur **Leaderboard**!
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Teknologi yang Digunakan
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Proyek ini dikembangkan menggunakan _modern web stack_:
 
-## Learn More
+- **Frontend:** [Next.js](https://nextjs.org/) (App Router), React, dan Tailwind CSS.
+- **Pendeteksi Gerakan (Computer Vision):** [@mediapipe/hands](https://google.github.io/mediapipe/solutions/hands) & Camera Utils.
+- **Autentikasi User:** [Clerk](https://clerk.dev/).
+- **Database (Leaderboard):** [MongoDB](https://www.mongodb.com/) dengan Mongoose.
 
-To learn more about Next.js, take a look at the following resources:
+## Cara Menjalankan Proyek Secara Lokal
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Jika kamu ingin menjalankan atau berkontribusi pada proyek ini di komputer lokal:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Clone repositori ini.
+2. Install dependensi menggunakan
+   npm install, yarn install, atau pnpm install.
+3. Atur _Environment Variables_ (.env) untuk Clerk dan MongoDB.
+4. Jalankan _development server_:
 
-## Deploy on Vercel
+`npm run dev`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Buka [http://localhost:3000](http://localhost:3000) di browser untuk melihat hasilnya.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Kontribusi
+
+Tertarik untuk membuat _Kicau Mania Speed_ lebih baik? Fitur baru, perbaikan bug, maupun peningkatan algoritma deteksi ayunan tangan akan sangat diterima!
+
+<div align="center">
+  <img src="https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExNTZkNG1hNzc3anp3bXZ2MXh0bXYydHNnejh2MDJ5d2N2ZmZjbG41MyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/93mS3A87wfmOySC29W/giphy.gif" alt="Terima Kasih Atas Kontribusinya" width="400" />
+  <br/>
+  <i>Mari bergabung dan kembangkan proyek ini bersama!</i>
+</div>
