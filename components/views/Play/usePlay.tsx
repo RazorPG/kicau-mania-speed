@@ -1,145 +1,158 @@
 "use client"
 import { useEffect, useRef, useState } from "react"
 
-type GameState = "IDLE" | "COUNTDOWN" | "PLAYING" | "GAME_OVER"
-
-// ─────────────────────────────────────────────
-// Konstanta
-// ─────────────────────────────────────────────
-const SWING_COOLDOWN = 350 // ms antar count (cukup pendek agar lambai cepat terhitung)
-const MAX_FRAMES = 6 // dikurangi dari 10 agar responsif di lambai cepat
-const SWING_THRESHOLD = 0.06 // amplitudo minimum (sedikit dikurangi agar lambai cepat tetap detect)
-const MIN_FINGER_UP = 3
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
-
-const isFingerUp = (lm: any[], tip: number, base: number) =>
-  lm[tip].y < lm[base].y
-
-const isHandOpen = (lm: any[]) =>
-  [
-    isFingerUp(lm, 8, 6),
-    isFingerUp(lm, 12, 10),
-    isFingerUp(lm, 16, 14),
-    isFingerUp(lm, 20, 18),
-  ].filter(Boolean).length >= MIN_FINGER_UP
-
-const isHandAtMouth = (lm: any[], wristOtherY: number) => {
-  const isAboveOtherHand = lm[0].y < wristOtherY
-  const isNotFullyOpen = !isHandOpen(lm)
-  return isAboveOtherHand && isNotFullyOpen
-}
-
-/**
- * Deteksi ayunan dengan peak/valley dari 3 titik terakhir.
- * Lebih responsif dibanding window-average karena hanya butuh 3 frame,
- * sehingga lambai cepat maupun lambat sama-sama terdeteksi.
- *
- * Syarat dihitung sebagai ayunan:
- *   1. Titik tengah (hist[n-2]) adalah peak atau valley
- *   2. Amplitudo keseluruhan history >= SWING_THRESHOLD
- */
-function detectSwing(hist: number[]): boolean {
-  if (hist.length < 3) return false
-
-  const amplitude = Math.max(...hist) - Math.min(...hist)
-  if (amplitude < SWING_THRESHOLD) return false
-
-  const n = hist.length
-  const i = n - 2 // titik tengah dari 3 frame terakhir
-
-  const isPeak = hist[i] > hist[i - 1] && hist[i] > hist[n - 1]
-  const isValley = hist[i] < hist[i - 1] && hist[i] < hist[n - 1]
-
-  return isPeak || isValley
-}
-
-// ─────────────────────────────────────────────
-// Hook
-// ─────────────────────────────────────────────
-export default function usePlay() {
+function usePlay() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const audioRef = useRef<HTMLAudioElement>(null)
 
+  // Karena setiap tangan butuh history pergerakannya sendiri-sendiri, kita pakai object/dictionary
+  const historyRef = useRef<{ [key: number]: number[] }>({})
   const handsRef = useRef<any>(null)
   const rafRef = useRef<number | null>(null)
+
   const isProcessingRef = useRef(false)
   const isInitializedRef = useRef(false)
   const lastCountTimeRef = useRef(0)
 
-  // History x per hand index
-  const historyRef = useRef<{ [idx: number]: number[] }>({})
-
   const [counter, setCounter] = useState(0)
+
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  type GameState = "IDLE" | "COUNTDOWN" | "PLAYING" | "GAME_OVER"
   const [gameState, setGameState] = useState<GameState>("IDLE")
+  const gameStateRef = useRef<GameState>("IDLE")
   const [countdown, setCountdown] = useState(3)
   const [timeLeft, setTimeLeft] = useState(15)
 
-  const gameStateRef = useRef<GameState>("IDLE")
-  const updateGameState = (s: GameState) => {
-    gameStateRef.current = s
-    setGameState(s)
+  const updateGameState = (newState: GameState) => {
+    gameStateRef.current = newState
+    setGameState(newState)
   }
 
-  // ── Game controls ──────────────────────────
   const startGame = () => {
     setCounter(0)
     setCountdown(3)
     setTimeLeft(15)
     updateGameState("COUNTDOWN")
-    audioRef.current?.play().catch(() => {})
+
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0
+      audioRef.current.play().catch(e => console.error("Audio play failed:", e))
+    }
   }
 
   const resetGame = () => {
     setCounter(0)
     updateGameState("IDLE")
+
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current.currentTime = 0
     }
   }
 
-  // ── Countdown timer ────────────────────────
   useEffect(() => {
-    if (gameState !== "COUNTDOWN") return
-    const t = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(t)
-          updateGameState("PLAYING")
-          return 3
-        }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(t)
-  }, [gameState])
-
-  // ── Play timer ─────────────────────────────
-  useEffect(() => {
-    if (gameState !== "PLAYING") return
-    const t = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(t)
-          updateGameState("GAME_OVER")
-          if (audioRef.current) {
-            audioRef.current.pause()
-            audioRef.current.currentTime = 0
+    let timer: NodeJS.Timeout
+    if (gameState === "COUNTDOWN") {
+      timer = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer)
+            updateGameState("PLAYING")
+            return 3
           }
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(t)
+          return prev - 1
+        })
+      }, 1000)
+    }
+    return () => clearInterval(timer)
   }, [gameState])
 
-  // ── MediaPipe onResults ────────────────────
+  useEffect(() => {
+    let timer: NodeJS.Timeout
+    if (gameState === "PLAYING") {
+      timer = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(timer)
+            updateGameState("GAME_OVER")
+
+            if (audioRef.current) {
+              audioRef.current.pause()
+              audioRef.current.currentTime = 0
+            }
+
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
+    return () => clearInterval(timer)
+  }, [gameState])
+
+  const SWING_COOLDOWN = 300 // ms
+  const UMBRAL_AGITACION = 0.04
+  const MAX_FRAMES = 8
+  const FACE_X = 0.5
+  const FACE_Y = 0.35
+  const UMBRAL_CERCA_CARA = 0.25
+
+  // =========================
+  // HELPER FUNCTIONS
+  // =========================
+
+  const isFingerUp = (lm: any, tip: number, base: number) => {
+    return lm[tip].y < lm[base].y
+  }
+
+  const isHandOpen = (lm: any) => {
+    const count = [
+      isFingerUp(lm, 8, 6),
+      isFingerUp(lm, 12, 10),
+      isFingerUp(lm, 16, 14),
+      isFingerUp(lm, 20, 18),
+    ].filter(Boolean).length
+    return count >= 3
+  }
+
+  const isHandNearFace = (lm: any) => {
+    // lm[0] adalah pangkal telapak tangan (wrist)
+    const dx = lm[0].x - FACE_X
+    const dy = lm[0].y - FACE_Y
+    return Math.sqrt(dx * dx + dy * dy) < UMBRAL_CERCA_CARA
+  }
+
+  const checkIsHandWaving = (hist: number[]) => {
+    if (hist.length < MAX_FRAMES) return false
+    const max = Math.max(...hist)
+    const min = Math.min(...hist)
+    if (max - min < UMBRAL_AGITACION) return false
+
+    let directionChanges = 0
+    for (let i = 1; i < hist.length - 1; i++) {
+      if (
+        (hist[i] > hist[i - 1] && hist[i] > hist[i + 1]) ||
+        (hist[i] < hist[i - 1] && hist[i] < hist[i + 1])
+      ) {
+        directionChanges++
+      }
+    }
+    return directionChanges >= 1
+  }
+
+  const checkIsNewSwing = (hist: number[]) => {
+    if (hist.length < 3) return false
+    const i = hist.length - 2
+    // Cek apakah data sebelumnya merupakan puncak atau lembah
+    const isPeak = hist[i] > hist[i - 1] && hist[i] > hist[hist.length - 1]
+    const isValley = hist[i] < hist[i - 1] && hist[i] < hist[hist.length - 1]
+    const amplitude = Math.max(...hist) - Math.min(...hist)
+    return (isPeak || isValley) && amplitude >= UMBRAL_AGITACION
+  }
+
   const onResults = (results: any) => {
+    // 1. Dapatkan Canvas & Gambarkan videonya
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
@@ -147,120 +160,151 @@ export default function usePlay() {
 
     ctx.save()
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    if (results.image)
+
+    // Gambarkan gambar asli/video (yang dikembalikan oleh MediaPipe) ke canvas
+    if (results.image) {
       ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height)
+    }
 
-    const lms = results.multiHandLandmarks as any[] | undefined
-    const hands = results.multiHandedness as any[] | undefined
-
-    if (!lms || lms.length === 0) {
+    if (
+      !results.multiHandLandmarks ||
+      results.multiHandLandmarks.length === 0
+    ) {
       ctx.restore()
       return
     }
 
-    // Gambar skeleton
+    // 2. Jika ada tangan, gambar Landmarks (Tulang Jari)
+    ctx.strokeStyle = "#00FF00" // Warna garis (Hijau)
+    ctx.lineWidth = 3
+    ctx.fillStyle = "#FF0000" // Warna titik jari (Merah)
+
     const connections = [
       [0, 1],
       [1, 2],
       [2, 3],
-      [3, 4],
+      [3, 4], // Jempol
       [0, 5],
       [5, 6],
       [6, 7],
-      [7, 8],
+      [7, 8], // Telunjuk
       [5, 9],
       [9, 10],
       [10, 11],
-      [11, 12],
+      [11, 12], // Tengah
       [9, 13],
       [13, 14],
       [14, 15],
-      [15, 16],
+      [15, 16], // Manis
       [13, 17],
       [17, 18],
       [18, 19],
-      [19, 20],
-      [0, 17],
+      [19, 20], // Kelingking
+      [0, 17], // Pangkal tangan
     ]
-    ctx.strokeStyle = "#00FF00"
-    ctx.lineWidth = 3
-    ctx.fillStyle = "#FF0000"
-    lms.forEach(lm => {
-      connections.forEach(([s, e]) => {
+
+    // Loop untuk KEDUA tangan (atau lebih)
+    results.multiHandLandmarks.forEach((lm: any) => {
+      connections.forEach(([start, end]) => {
+        const pt1 = lm[start]
+        const pt2 = lm[end]
         ctx.beginPath()
-        ctx.moveTo(lm[s].x * canvas.width, lm[s].y * canvas.height)
-        ctx.lineTo(lm[e].x * canvas.width, lm[e].y * canvas.height)
+        ctx.moveTo(pt1.x * canvas.width, pt1.y * canvas.height)
+        ctx.lineTo(pt2.x * canvas.width, pt2.y * canvas.height)
         ctx.stroke()
       })
-      lm.forEach((p: any) => {
+
+      lm.forEach((point: any) => {
         ctx.beginPath()
-        ctx.arc(p.x * canvas.width, p.y * canvas.height, 4, 0, 2 * Math.PI)
+        ctx.arc(
+          point.x * canvas.width,
+          point.y * canvas.height,
+          4,
+          0,
+          2 * Math.PI
+        )
         ctx.fill()
       })
     })
+
     ctx.restore()
 
-    // Hapus history tangan yang sudah tidak terdeteksi
-    if (hands) {
-      const activeIdxs = new Set(hands.map((h: any) => h.index as number))
-      Object.keys(historyRef.current).forEach(k => {
-        if (!activeIdxs.has(Number(k))) delete historyRef.current[Number(k)]
+    // 3. Logika Penghitungan Pergerakan Dua Tangan
+    let tangan_lambai_terdeteksi = false
+    let tangan_di_mulut_terdeteksi = false
+    let ayunan_baru = false
+
+    // Bersihkan history tangan yang sudah tak terdeteksi
+    if (results.multiHandedness) {
+      const currentIdxs = new Set(
+        results.multiHandedness.map((h: any) => h.index)
+      )
+      Object.keys(historyRef.current).forEach(key => {
+        if (!currentIdxs.has(Number(key))) {
+          delete historyRef.current[Number(key)]
+        }
       })
     }
 
-    if (!hands || lms.length < 2) return // Butuh 2 tangan
+    if (results.multiHandLandmarks && results.multiHandedness) {
+      results.multiHandLandmarks.forEach((lm: any, idx: number) => {
+        const handIdx = results.multiHandedness[idx].index
+        if (!historyRef.current[handIdx]) {
+          historyRef.current[handIdx] = []
+        }
 
-    // Kumpulkan wrist Y kedua tangan
-    const wristYMap: { [idx: number]: number } = {}
-    lms.forEach((lm, i) => {
-      const idx = hands[i].index as number
-      wristYMap[idx] = lm[0].y
-    })
+        const hist = historyRef.current[handIdx]
+        const xCentro = lm[9].x
 
-    // Tentukan peran tiap tangan
-    let mulutIdx: number | null = null
-    let lambaiIdx: number | null = null
+        // -- Deteksi Lambai --
+        if (isHandOpen(lm)) {
+          hist.push(xCentro)
+          if (hist.length > MAX_FRAMES) hist.shift()
 
-    lms.forEach((lm, i) => {
-      const idx = hands[i].index as number
-      const otherIdx = Object.keys(wristYMap)
-        .map(Number)
-        .find(k => k !== idx)
-      if (otherIdx === undefined) return
+          if (checkIsHandWaving(hist)) {
+            tangan_lambai_terdeteksi = true
 
-      if (isHandAtMouth(lm, wristYMap[otherIdx])) mulutIdx = idx
-      if (isHandOpen(lm)) lambaiIdx = idx
-    })
+            // Cek ayunan baru persis seperti python: `hitung_ayunan`
+            if (checkIsNewSwing(hist)) {
+              ayunan_baru = true
+            }
+          }
+        } else {
+          // Tetap update history kalau gak lambai (seperti Python)
+          hist.push(xCentro)
+          if (hist.length > MAX_FRAMES) hist.shift()
+        }
 
-    // Kedua kondisi harus terpenuhi oleh tangan yang berbeda
-    if (mulutIdx === null || lambaiIdx === null) return
-    if (mulutIdx === lambaiIdx) return
+        // -- Deteksi Tangan di Mulut/Wajah --
+        if (isHandNearFace(lm)) {
+          tangan_di_mulut_terdeteksi = true
+        }
+      })
+    }
 
-    // Update history tangan yang melambai
-    const lambaiHandIdx = hands.findIndex((h: any) => h.index === lambaiIdx)
-    if (lambaiHandIdx === -1) return
-    const lambaiLm = lms[lambaiHandIdx]
+    const gesto_activo = tangan_lambai_terdeteksi && tangan_di_mulut_terdeteksi
 
-    if (!historyRef.current[lambaiIdx!]) historyRef.current[lambaiIdx!] = []
-    const hist = historyRef.current[lambaiIdx!]
-
-    hist.push(lambaiLm[9].x)
-    if (hist.length > MAX_FRAMES) hist.shift()
-
-    // Deteksi ayunan — responsif untuk lambai cepat maupun lambat
-    if (detectSwing(hist) && gameStateRef.current === "PLAYING") {
+    // COUNTER: naik hanya saat gesture aktif + ayunan baru selesai
+    if (gesto_activo && ayunan_baru) {
       const now = Date.now()
-      if (now - lastCountTimeRef.current > SWING_COOLDOWN) {
+      if (
+        now - lastCountTimeRef.current > SWING_COOLDOWN &&
+        gameStateRef.current === "PLAYING"
+      ) {
         lastCountTimeRef.current = now
         setCounter(prev => prev + 1)
       }
     }
   }
 
-  // ── Init MediaPipe ─────────────────────────
+  // =========================
+  // INIT MEDIAPIPE
+  // =========================
+
   useEffect(() => {
     if (isInitializedRef.current) return
     isInitializedRef.current = true
+
     let mounted = true
 
     const init = async () => {
@@ -268,6 +312,7 @@ export default function usePlay() {
       const canvas = canvasRef.current
       if (!video || !canvas) return
 
+      // ✅ Step 1: Minta akses kamera manual (bukan lewat MediaPipe Camera)
       let stream: MediaStream
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -279,47 +324,62 @@ export default function usePlay() {
         return
       }
 
+      // Jika komponen keburu di-unmount selagi menunggu izin kamera
       if (!mounted) {
-        stream.getTracks().forEach(t => t.stop())
+        stream.getTracks().forEach(track => track.stop())
         return
       }
 
       video.srcObject = stream
       await video.play()
 
-      // Tunggu dimensi valid
+      // ✅ Step 2: Tunggu video benar-benar punya dimensi valid
       await new Promise<void>(resolve => {
         const check = () => {
           if (!mounted) return
-          if (video.videoWidth > 0 && video.videoHeight > 0) resolve()
-          else requestAnimationFrame(check)
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            resolve()
+          } else {
+            requestAnimationFrame(check)
+          }
         }
         check()
       })
+
       if (!mounted) return
 
+      // Set canvas sesuai ukuran video
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
+      const ctx = canvas.getContext("2d")!
 
+      // ✅ Step 3: Load MediaPipe Hands
       const { Hands } = await import("@mediapipe/hands")
+
       const hands = new Hands({
         locateFile: (file: string) =>
           `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`,
       })
+
       hands.setOptions({
-        maxNumHands: 2,
-        modelComplexity: 0,
-        minDetectionConfidence: 0.5,
+        maxNumHands: 2, // Diubah menjadi 2 agar bisa mendeteksi tangan kiri & kanan
+        modelComplexity: 0, // 0 = Lite (lebih cepat), 1 = Full (lebih akurat). Lite mencegah bug gagal load .tflite
+        minDetectionConfidence: 0.5, // Sedikit diturunkan agar lebih gampang detect 2 tangan
         minTrackingConfidence: 0.5,
       })
+
       hands.onResults(onResults)
       handsRef.current = hands
 
+      // ✅ Step 4: Loop manual pakai requestAnimationFrame
       const loop = async () => {
         if (!mounted) return
+
         if (!isProcessingRef.current && video.readyState >= 2) {
           isProcessingRef.current = true
           try {
+            // Gambar Canvas dipindahkan ke onResults sepenuhnya untuk mencegah flicker
+            // Kirim video langsung ke MediaPipe
             await hands.send({ image: video })
           } catch (err) {
             console.error("MediaPipe error:", err)
@@ -327,12 +387,18 @@ export default function usePlay() {
             isProcessingRef.current = false
           }
         }
+
         setTimeout(() => {
-          if (mounted) rafRef.current = requestAnimationFrame(loop)
-        }, 1000 / 60)
+          if (mounted) {
+            rafRef.current = requestAnimationFrame(loop)
+          }
+        }, 1000 / 60) // Batasi sekitar 60 FPS untuk mencegah memori WASM penuh
       }
 
-      if (mounted) rafRef.current = requestAnimationFrame(loop)
+      // Langsung panggil loop karena video sudah pasti siap (kita sudah await dimensinya di atas)
+      if (mounted) {
+        rafRef.current = requestAnimationFrame(loop)
+      }
     }
 
     init()
@@ -340,11 +406,20 @@ export default function usePlay() {
     return () => {
       mounted = false
       isInitializedRef.current = false
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-      handsRef.current?.close()
+
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+      }
+
+      if (handsRef.current) {
+        handsRef.current.close()
+      }
+
+      // Matikan stream kamera
       const video = videoRef.current
-      if (video?.srcObject) {
-        ;(video.srcObject as MediaStream).getTracks().forEach(t => t.stop())
+      if (video && video.srcObject) {
+        const stream = video.srcObject as MediaStream
+        stream.getTracks().forEach(track => track.stop())
         video.srcObject = null
       }
     }
@@ -362,3 +437,5 @@ export default function usePlay() {
     resetGame,
   }
 }
+
+export default usePlay

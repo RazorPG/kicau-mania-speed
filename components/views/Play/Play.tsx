@@ -69,7 +69,7 @@ export default function Play() {
             >
               Ready
             </button>
-            <p className="text-slate-400 text-sm">
+            <p className="text-slate-400 text-sm text-center">
               klik tombol "Ready" untuk memulai permainan dan pastikan kamera
               sudah aktif.
             </p>
