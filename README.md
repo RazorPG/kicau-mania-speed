@@ -1,5 +1,5 @@
 <p align="center">
-	<img src="public/images/logo.png" alt="Kicau Mania Speed Logo" width="180" />
+	<img src="public/image/logo.png" alt="Kicau Mania Speed Logo" width="180" />
 </p>
 
 <h1 align="center">Kicau Mania Speed</h1>
