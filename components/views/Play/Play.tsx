@@ -1,5 +1,7 @@
 "use client"
 
+import { useEffect, useRef } from "react"
+import { useUser } from "@clerk/nextjs"
 import usePlay from "./usePlay"
 
 export default function Play() {
@@ -15,13 +17,41 @@ export default function Play() {
     resetGame,
   } = usePlay()
 
+  const { user } = useUser()
+  const scoreSubmittedRef = useRef(false)
+
+  // Reset flag when game isn't over
+  useEffect(() => {
+    if (gameState !== "GAME_OVER") {
+      scoreSubmittedRef.current = false
+    }
+  }, [gameState])
+
+  // Submit score when game is over
+  useEffect(() => {
+    if (gameState === "GAME_OVER" && user && !scoreSubmittedRef.current) {
+      scoreSubmittedRef.current = true
+      console.log("Submitting score:", counter)
+      fetch("/api/score", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ score: counter }),
+      }).catch(err => {
+        console.error("Failed to submit score", err)
+        scoreSubmittedRef.current = false // allow retry if needed
+      })
+    }
+  }, [gameState, user, counter])
+
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white overflow-hidden p-4">
+    <div className="relative flex flex-col items-center justify-center flex-1 text-white overflow-hidden p-4">
       <audio ref={audioRef} src="/audio/kicau_mania.mp3" preload="auto" />
       <video ref={videoRef} playsInline className="hidden" />
 
       {/* Main Game Container */}
-      <div className="relative flex items-center justify-center w-full max-w-4xl mx-auto rounded-xl overflow-hidden bg-slate-900 shadow-2xl grow max-h-[75vh]">
+      <div className="relative flex items-center justify-center w-full mx-auto rounded-xl overflow-hidden bg-black shadow-2xl grow max-h-[75vh] max-w-7xl">
         <canvas
           ref={canvasRef}
           width={640}
@@ -31,7 +61,7 @@ export default function Play() {
 
         {/* IDLE State Overlay */}
         {gameState === "IDLE" && (
-          <div className="absolute inset-0 bg-slate-900/80 flex flex-col items-center justify-center z-10">
+          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-10 backdrop-blur-sm">
             <button
               onClick={startGame}
               className="px-10 py-3 text-xl font-bold bg-slate-600 hover:bg-slate-500 rounded-full shadow-lg transition-all mb-4"
@@ -39,7 +69,8 @@ export default function Play() {
               Ready
             </button>
             <p className="text-slate-400 text-sm">
-              Click Ready when you are set to start the game
+              klik tombol "Ready" untuk memulai permainan dan pastikan kamera
+              sudah aktif.
             </p>
           </div>
         )}

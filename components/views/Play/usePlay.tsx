@@ -325,12 +325,19 @@ function usePlay() {
         return
       }
 
+      // Jika komponen keburu di-unmount selagi menunggu izin kamera
+      if (!mounted) {
+        stream.getTracks().forEach(track => track.stop())
+        return
+      }
+
       video.srcObject = stream
       await video.play()
 
       // ✅ Step 2: Tunggu video benar-benar punya dimensi valid
       await new Promise<void>(resolve => {
         const check = () => {
+          if (!mounted) return
           if (video.videoWidth > 0 && video.videoHeight > 0) {
             resolve()
           } else {
@@ -339,6 +346,8 @@ function usePlay() {
         }
         check()
       })
+
+      if (!mounted) return
 
       // Set canvas sesuai ukuran video
       canvas.width = video.videoWidth
@@ -388,13 +397,16 @@ function usePlay() {
       }
 
       // Langsung panggil loop karena video sudah pasti siap (kita sudah await dimensinya di atas)
-      rafRef.current = requestAnimationFrame(loop)
+      if (mounted) {
+        rafRef.current = requestAnimationFrame(loop)
+      }
     }
 
     init()
 
     return () => {
       mounted = false
+      isInitializedRef.current = false
 
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current)
@@ -409,6 +421,7 @@ function usePlay() {
       if (video && video.srcObject) {
         const stream = video.srcObject as MediaStream
         stream.getTracks().forEach(track => track.stop())
+        video.srcObject = null
       }
     }
   }, [])
